@@ -1,6 +1,6 @@
 # FileBox Index v1.0
 # rootDir: C:\Users\matte\Pictures
-# generatedAt: 2025-10-01T08:15:08.553656200Z
+# generatedAt: 2025-10-01T09:25:33.207048300Z
 # fields=relativePath	size	mtimeMillis	sha256
 
 Camera Roll\desktop.ini	190	1707464521243	231a08caba1f9ba9f14bd3e46834288f3c351079fcedda15e391b724ac0c7ea8
@@ -67,4 +67,4 @@ test\test - Copy (4).txt	0	1759306439436	e3b0c44298fc1c149afbf4c8996fb92427ae41e
 test\test - Copy.txt	0	1759306439436	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 test\test.txt	0	1759306439436	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ======================
-# Summary: files=63, totalBytes=21771937 durationMillis=67 ms
+# Summary: files=63, totalBytes=21771937 durationMillis=68 ms
