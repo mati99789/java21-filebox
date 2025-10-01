@@ -3,11 +3,15 @@ package services;
 import Model.FileEntry;
 import Model.ScanSummary;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.logging.Logger;
@@ -29,8 +33,9 @@ public class ScannerService {
 
     public ScanSummary scan() {
         if (Files.isDirectory(userAbsolutePath)) {
-            Instant start = Instant.now();
             LOGGER.info(String.format("Scanning directory: %s", userAbsolutePath));
+
+            Instant start = Instant.now();
             List<FileEntry> files = exploreDirectory(userAbsolutePath);
             Instant end = Instant.now();
             long duration = end.toEpochMilli() - start.toEpochMilli();
@@ -47,7 +52,6 @@ public class ScannerService {
         return null;
     }
 
-
     private void checkPath(Path path) {
         if (!Files.exists(path)) {
             LOGGER.warning("Path does not exist");
@@ -59,16 +63,11 @@ public class ScannerService {
     private List<FileEntry> exploreDirectory(Path path) {
         LOGGER.info(String.format("Exploring directory: %s", path));
         try (Stream<Path> walk = Files.walk(path)) {
-            List<FileEntry> fileEntries = walk
+            return walk
                     .filter(Files::isRegularFile)
                     .map(this::addMetaData)
                     .filter(Objects::nonNull)
                     .toList();
-
-
-
-
-            return fileEntries;
         } catch (IOException e) {
             LOGGER.warning(String.format("Error while exploring directory %s: %s", path, e.getMessage()));
             System.exit(2);
@@ -81,11 +80,29 @@ public class ScannerService {
             long size = Files.size(filePath);
             FileTime lastModifiedTime = Files.getLastModifiedTime(filePath);
             Path relativePath = this.userAbsolutePath.relativize(filePath).normalize();
+            String sha256 = calculateSHA256(filePath);
 
-            return new FileEntry(relativePath, size, lastModifiedTime.toMillis());
+            return new FileEntry(relativePath, size, lastModifiedTime.toMillis(), sha256);
         } catch (IOException e) {
             LOGGER.warning(String.format("Error while reading file %s: %s", filePath, e.getMessage()));
         }
         return null;
+    }
+
+    private String calculateSHA256(Path filePath) {
+        try(BufferedInputStream bis = new BufferedInputStream(Files.newInputStream(filePath))) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = bis.read(buffer)) != -1) {
+                digest.update(buffer, 0, bytesRead);
+            }
+
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException | IOException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 }

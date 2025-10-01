@@ -10,7 +10,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 public class IndexStoreService {
     private final static Logger LOGGER = Logger.getLogger(IndexStoreService.class.getName());
@@ -24,14 +26,21 @@ public class IndexStoreService {
 
     public void save(List<FileEntry> fileEntryList) {
         Path outputFil = Path.of(outputPath).toAbsolutePath().normalize();
-        if(Files.isDirectory(outputFil) || !this.outputPath.contains(".")) {
+
+        if (outputFil.endsWith("/") || outputFil.endsWith("\\")) {
             outputFil = outputFil.resolve("index.txt");
         }
-        Path parnetDir = outputFil.getParent();
-        if(parnetDir != null) {
+
+        if (Files.isDirectory(outputFil) && Files.exists(outputFil)) {
+            outputFil = outputFil.resolve("index.txt");
+        }
+
+        Path parentDir = outputFil.getParent();
+        if (parentDir != null) {
             try {
-                Files.createDirectories(parnetDir);
+                Files.createDirectories(parentDir);
             } catch (IOException e) {
+                LOGGER.warning(String.format("Error while creating directory %s: %s", parentDir, e.getMessage()));
                 System.exit(2);
             }
         }
@@ -45,21 +54,56 @@ public class IndexStoreService {
             writer.write("# generatedAt: " + Instant.now().toString());
             writer.newLine();
 
-            writer.write("# fields=relativePath\tsize\tmtimeMillis");
+            writer.write("# fields=relativePath\tsize\tmtimeMillis\tsha256");
             writer.newLine();
             writer.newLine();
             for (FileEntry fileEntry : fileEntryList) {
-                writer.write(String.format("%s\t%d\t%d", fileEntry.relativePath(), fileEntry.size(), fileEntry.lastModifiedTime()));
+                writer.write(String.format("%s\t%d\t%d\t%s", fileEntry.relativePath(), fileEntry.size(), fileEntry.lastModifiedTime(), fileEntry.sha256()));
                 writer.newLine();
             }
             writer.write("======================");
             writer.newLine();
-            writer.write(String.format("# files=%d, totalBytes=%d durationMillis=%d ms", scanSummary.totalFiles(), scanSummary.totalBytes(), scanSummary.durationMillis()));
+            writer.write(String.format("# Summary: files=%d, totalBytes=%d durationMillis=%d ms", scanSummary.totalFiles(), scanSummary.totalBytes(), scanSummary.durationMillis()));
         } catch (IOException e) {
             LOGGER.warning(String.format("Error while writing index file: %s", e.getMessage()));
             System.exit(2);
         }
     }
 
+    public static List<FileEntry> load(Path path) {
+        try (Stream<String> lines = Files.lines(path)) {
+            List<FileEntry> result = lines
+                    .filter(line -> !line.startsWith("#"))
+                    .filter(line -> !line.startsWith("="))
+                    .filter(line -> !line.trim().isEmpty())
+                    .map(IndexStoreService::parseLine)
+                    .filter(Objects::nonNull)
+                    .toList();
 
+            LOGGER.info("Loaded " + result.size() + " entries");
+
+            return result;
+        } catch (IOException e) {
+            LOGGER.warning(String.format("Error while reading index file: %s", e.getMessage()));
+            System.exit(2);
+        }
+        return null;
+    }
+
+    private static FileEntry parseLine(String line) {
+        String[] fields = line.split("\t");
+        if (fields.length == 4) {
+            String relativePath = fields[0];
+            String size = fields[1];
+            String mtimeMillis = fields[2];
+            String sha256 = fields[3];
+            try {
+                return new FileEntry(Path.of(relativePath), Long.parseLong(size), Long.parseLong(mtimeMillis), sha256);
+            } catch (NumberFormatException e) {
+                LOGGER.warning(String.format("Error while parsing line: %s", e.getMessage()));
+                System.exit(2);
+            }
+        }
+        return null;
+    }
 }

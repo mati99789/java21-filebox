@@ -1,7 +1,14 @@
+import Model.FileEntry;
 import Model.ScanSummary;
+import services.IndexStoreService;
 import services.ScannerService;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 public class Main {
     private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
@@ -17,20 +24,62 @@ public class Main {
 
 
 
+
         switch (command) {
             case "scan" -> {
                 if (path == null) {
                     LOGGER.warning("No path provided");
                     System.exit(1);
                 }
+
                 LOGGER.info(String.format("Scanning path: %s", path));
-                ScanSummary scanSummary = new ScannerService(path, output).scan();
+
+                ScannerService scannerService = new ScannerService(path, output);
+                ScanSummary scanSummary = scannerService.scan();
 
                 if (scanSummary != null) {
-                    LOGGER.info(String.format("Found %d files, %d bytes. Scan took %d ms", scanSummary.totalFiles(), scanSummary.totalBytes(), scanSummary.durationMillis()));
+                    LOGGER.info(String.format("Found %d files, %d MB. Scan took %d ms", scanSummary.totalFiles(), scanSummary.totalBytes()/1000000, scanSummary.durationMillis()));
                 } else {
                     LOGGER.warning("Scan failed");
                     System.exit(2);
+                }
+            }
+            case "dedupe" -> {
+                String indexPath = args.length > 1 ? args[1] : "index.txt";
+
+                Path indexFile = Path.of(indexPath).toAbsolutePath().normalize();
+
+                if(!Files.exists(indexFile)) {
+                    LOGGER.warning("Index file does not exist");
+                    System.exit(1);
+                }
+
+                List<FileEntry> entries = IndexStoreService.load(indexFile);
+
+                Map<String, List<FileEntry>> grouped = entries.stream().collect(Collectors.groupingBy(FileEntry::sha256));
+
+                Map<String, List<FileEntry>> duplicates = grouped.entrySet().stream().filter(e -> e.getValue().size() > 1).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+
+                if(duplicates.isEmpty()) {
+                    LOGGER.info("No duplicates found");
+
+                    System.exit(0);
+                }
+
+                LOGGER.info("Found " + duplicates.size() + " duplicates");
+
+                for(Map.Entry<String, List<FileEntry>> entry : duplicates.entrySet()) {
+                    String hash = entry.getKey();
+                    List<FileEntry> files = entry.getValue();
+
+                    long size = files.getFirst().size();
+                    LOGGER.info(String.format("Group: %d copies, %d bytes, hash: %s",
+                            files.size(), size, hash.substring(0, 16) + "..."));
+
+                    for(FileEntry file : files) {
+                        LOGGER.info(" - "+ file.relativePath());
+                    }
                 }
             }
             case "help", "-h", "--help" -> {
