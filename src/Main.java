@@ -99,7 +99,7 @@ public class Main {
         System.out.println("""
                 Usage: filebox [command] [path] [output]
                 Commands: scan
-                Output: path to output file (default: index.txt) 
+                Output: path to output file (default: index.txt)
                 Help: filebox -h or --help or filebox help
                 """);
     }
