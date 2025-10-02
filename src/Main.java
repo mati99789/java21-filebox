@@ -1,8 +1,10 @@
-import Model.FileEntry;
-import Model.ScanSummary;
+import model.FileEntry;
+import model.ScanSummary;
 import services.IndexStoreService;
 import services.ScannerService;
+import services.WatcherService;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -21,8 +23,6 @@ public class Main {
         String command = args.length >= 1 ? args[0] : null;
         String path = args.length > 1 ? args[1] : null;
         String output = args.length > 2 ? args[2] : "index.txt";
-
-
 
 
         switch (command) {
@@ -80,6 +80,26 @@ public class Main {
                     for(FileEntry file : files) {
                         LOGGER.info(" - "+ file.relativePath());
                     }
+                }
+            }
+            case "watch" -> {
+                if (path == null) {
+                    LOGGER.warning("No path provided");
+                    System.exit(1);
+                }
+
+                try {
+                    WatcherService watcher = new WatcherService();
+                    watcher.registerDirectory(Path.of(path));
+
+                    Runtime.getRuntime().addShutdownHook(new Thread(() ->{
+                        LOGGER.info("Shutting down watcher");
+                        watcher.stop();
+                    }));
+
+                    watcher.start();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
             }
             case "help", "-h", "--help" -> {

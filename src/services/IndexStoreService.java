@@ -1,7 +1,7 @@
 package services;
 
-import Model.FileEntry;
-import Model.ScanSummary;
+import model.FileEntry;
+import model.ScanSummary;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
