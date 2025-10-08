@@ -1,4 +1,5 @@
 import model.FileEntry;
+import model.IndexData;
 import model.ScanSummary;
 import services.IndexStoreService;
 import services.ScannerService;
@@ -54,9 +55,9 @@ public class Main {
                     System.exit(1);
                 }
 
-                List<FileEntry> entries = IndexStoreService.load(indexFile);
+                IndexData data = IndexStoreService.load(indexFile);
 
-                Map<String, List<FileEntry>> grouped = entries.stream().collect(Collectors.groupingBy(FileEntry::sha256));
+                Map<String, List<FileEntry>> grouped = data.entries().stream().collect(Collectors.groupingBy(FileEntry::sha256));
 
                 Map<String, List<FileEntry>> duplicates = grouped.entrySet().stream().filter(e -> e.getValue().size() > 1).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
@@ -88,8 +89,20 @@ public class Main {
                     System.exit(1);
                 }
 
+                Path watchPath = Path.of(path).toAbsolutePath().normalize();
+                String indexPath = args.length > 2 ? args[2] : "index.txt";
+
+                IndexData data = IndexStoreService.load(Path.of(indexPath));
+
+                Path indexRootPath = Path.of(data.path()).toAbsolutePath().normalize();
+
+                if(!watchPath.equals(indexRootPath)) {
+                    LOGGER.severe("Path mismatch! Watch: " + watchPath + ", Index: " + indexRootPath);
+                    System.exit(1);
+                }
+
                 try {
-                    WatcherService watcher = new WatcherService();
+                    WatcherService watcher = new WatcherService(indexRootPath, data.entries(), indexPath);
                     watcher.registerDirectory(Path.of(path));
 
                     Runtime.getRuntime().addShutdownHook(new Thread(() ->{

@@ -1,14 +1,17 @@
 package services;
 
 import model.FileEntry;
+import model.IndexData;
 import model.ScanSummary;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.logging.Logger;
@@ -18,6 +21,7 @@ public class IndexStoreService {
     private final static Logger LOGGER = Logger.getLogger(IndexStoreService.class.getName());
     private final ScanSummary scanSummary;
     private final String outputPath;
+
 
     public IndexStoreService(ScanSummary scanSummary, String outputPath) {
         this.scanSummary = scanSummary;
@@ -70,21 +74,38 @@ public class IndexStoreService {
         }
     }
 
-    public static List<FileEntry> load(Path path) {
-        try (Stream<String> lines = Files.lines(path)) {
-            List<FileEntry> result = lines
-                    .filter(line -> !line.startsWith("#"))
-                    .filter(line -> !line.startsWith("="))
-                    .filter(line -> !line.trim().isEmpty())
-                    .map(IndexStoreService::parseLine)
-                    .filter(Objects::nonNull)
-                    .toList();
+    public static IndexData load(Path path) {
+        String rootPath = null;
+        List<FileEntry> entries = new ArrayList<>();
 
-            LOGGER.info("Loaded " + result.size() + " entries");
+        try (BufferedReader reader = Files.newBufferedReader(path)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("# rootDir:")) {
+                    rootPath = line.substring("# rootDir:".length()).trim();
+                    continue;
+                }
 
-            return result;
+                if (line.startsWith("#") || line.startsWith("=") || line.trim().isEmpty()) {
+                    continue;
+                }
+
+                FileEntry entry = parseLine(line);
+                if (entry != null) {
+                    entries.add(entry);
+                }
+            }
+
+            if (rootPath == null) {
+                LOGGER.warning("No rootDir in index");
+                System.exit(2);
+            }
+
+            LOGGER.info("Loaded " + entries.size() + " entries from " + rootPath);
+            return new IndexData(rootPath, entries);
+
         } catch (IOException e) {
-            LOGGER.warning(String.format("Error while reading index file: %s", e.getMessage()));
+            LOGGER.warning("Error: " + e.getMessage());
             System.exit(2);
         }
         return null;

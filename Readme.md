@@ -35,7 +35,7 @@
 * `scan <path>` — recursively scan and collect metadata (path, size, mtime).
 * `dedupe` — detect duplicates based on SHA‑256 (added in M2).
 * `watch <path>` — monitor real-time changes (create/modify/delete).
-* `export` — save index to file (TSV or custom format with version header).
+
 
 ## Requirements
 
@@ -145,7 +145,7 @@ Single-line convention: `timestamp | module | level | message`.
 * **M1** — scanner + index export (no hash).
 * **M2** — SHA‑256 + `dedupe` + performance measurements.
 * **M3** — watcher (directory registration, index updates on events).
-* **M4 (optional)** — memory-mapped files and locks (performance, concurrency).
+
 
 ## What I Learned
 

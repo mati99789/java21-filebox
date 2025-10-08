@@ -1,8 +1,17 @@
 package services;
 
-import java.io.IOException;
+import model.FileEntry;
+import model.ScanSummary;
+
+import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -10,13 +19,24 @@ import java.util.logging.Logger;
 import static java.nio.file.StandardWatchEventKinds.*;
 
 public class WatcherService {
-
     private static Logger LOGGER = Logger.getLogger(WatcherService.class.getName());
     private final java.nio.file.WatchService INSTANCE;
     private final Map<WatchKey, Path> KEYS = new ConcurrentHashMap<>();
     private boolean running = false;
 
-    public WatcherService() throws IOException {
+    private final Path rootPath;
+    private final Map<Path, FileEntry> index;
+    private final String indexFilePath;
+
+    public WatcherService(Path rootPath, List<FileEntry> entries, String indexFilePath) throws IOException {
+        this.rootPath = rootPath;
+        this.indexFilePath = indexFilePath;
+
+        this.index = new ConcurrentHashMap<>();
+        for(FileEntry entry : entries) {
+            index.put(entry.relativePath(), entry);
+
+        }
         this.INSTANCE = FileSystems.getDefault().newWatchService();
     }
 
@@ -58,19 +78,28 @@ public class WatcherService {
                 }
 
                 if (kind == ENTRY_CREATE) {
-                    if (Files.isDirectory(fullPath)) {
+                    if(Files.isRegularFile(fullPath)){
+
+                    Path relativeFromRoot = rootPath.relativize(fullPath);
+                    FileEntry entry = createFileEntry(fullPath, relativeFromRoot);
+                    index.put(relativeFromRoot, entry);
+                    saveIndex();
+                    } else if (Files.isDirectory(fullPath)) {
                         registerTree(fullPath);
                     }
                 }
 
-                if(kind == ENTRY_MODIFY) {
-                    if (Files.isRegularFile(fullPath)) {
-                        LOGGER.info("File modified " + fullPath);
-                    }
+                if (kind == ENTRY_MODIFY && Files.isRegularFile(fullPath)) {
+                    Path relativeFromRoot = rootPath.relativize(fullPath);
+                    FileEntry entry = createFileEntry(fullPath, relativeFromRoot);
+                    index.put(relativeFromRoot, entry);
+                    saveIndex();
                 }
 
-                if(kind == ENTRY_DELETE) {
-                    LOGGER.info("File deleted " + fullPath);
+                if (kind == ENTRY_DELETE) {
+                    Path relativeFromRoot = rootPath.relativize(fullPath);
+                    index.remove(relativeFromRoot);
+                    saveIndex();
                 }
 
             }
@@ -96,9 +125,6 @@ public class WatcherService {
             System.exit(2);
         }
 
-    }
-
-    public void handleEvent(WatchEvent event, Path path) {
     }
 
     public void registerOne(Path path) {
@@ -134,4 +160,46 @@ public class WatcherService {
         registerTree(path.toAbsolutePath().normalize());
     }
 
+    private FileEntry createFileEntry(Path absolutePath, Path relativePath) {
+        try {
+            long size = Files.size(absolutePath);
+            long mtime = Files.getLastModifiedTime(absolutePath).toMillis();
+            String sha256 = calculateSha256(absolutePath);
+            return new FileEntry(relativePath, size, mtime, sha256);
+        } catch (IOException e) {
+            LOGGER.warning("Cannot read file: " + absolutePath + " - " + e.getMessage());
+            return null;
+        }
+
+    }
+
+    private String calculateSha256(Path absolutePath) {
+        try(BufferedInputStream reader = new BufferedInputStream(Files.newInputStream(absolutePath))) {
+            MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+
+            while ((bytesRead = reader.read(buffer)) != -1) {
+                messageDigest.update(buffer, 0, bytesRead);
+            }
+
+            return HexFormat.of().formatHex(messageDigest.digest());
+
+        }catch (NoSuchAlgorithmException | IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void saveIndex() {
+        List<FileEntry> entries = new ArrayList<>(index.values());
+
+        long totalBytes = entries.stream().mapToLong(FileEntry::size).sum();
+
+        ScanSummary scanSummary = new ScanSummary(rootPath.toString(), totalBytes, entries.size(), 0);
+
+        new IndexStoreService(scanSummary, indexFilePath).save(entries);
+
+        LOGGER.info("Index saved: " + entries.size() + " files");
+    }
 }

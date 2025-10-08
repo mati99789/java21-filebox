@@ -1,8 +1,11 @@
 # FileBox Index v1.0
 # rootDir: /Users/roksanatrochimiuk/Desktop/test
-# generatedAt: 2025-10-02T15:22:13.182566Z
+# generatedAt: 2025-10-08T16:51:48.819783Z
 # fields=relativePath	size	mtimeMillis	sha256
 
-.DS_Store	6148	1759418413470	abee6b4e4a8b587a5a580819c69a7b75c21a26650509beae7b1d65f8c4941bcc
+text.txt	0	1759941938709	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+test2/.DS_Store	6148	1759418595333	d57ea0dafc473ae9c1197e295d77739fc7a1177cffa016719931c320cd4c9d64
+.DS_Store	6148	1759418590323	db1455c25c25c9683c3cda14eec7c37d5f750e5634eb43661871beab7a4faa8c
+testingCreation.txt	0	1759942288835	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ======================
-# Summary: files=1, totalBytes=6148 durationMillis=45 ms
+# Summary: files=4, totalBytes=12296 durationMillis=0 ms
